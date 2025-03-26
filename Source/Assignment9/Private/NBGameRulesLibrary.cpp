@@ -7,7 +7,6 @@ void UNBGameRulesLibrary::DecreaseChances(int& PlayerChances)
 	if (PlayerChances > 0)
 	{
 		PlayerChances--;
-		UE_LOG(LogTemp, Warning, TEXT("PlayerChance Left : %d"), PlayerChances);
 	}
 }
 
@@ -61,7 +60,6 @@ void UNBGameRulesLibrary::WinGame(const FString& UserID, bool& bGameOver)
 {
 	FString WinMessage = FString::Printf(TEXT("%s Won!!"), *UserID);
 	bGameOver = true;
-	UE_LOG(LogTemp, Warning, TEXT("%s"), *WinMessage);
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, WinMessage);
 }
 
@@ -69,7 +67,6 @@ void UNBGameRulesLibrary::DefeatGame(const FString& UserID, bool& bGameOver)
 {
 	FString DefeatMessage = FString::Printf(TEXT("%s Defeat!!"), *UserID);
 	bGameOver = true;
-	UE_LOG(LogTemp, Warning, TEXT("%s"), *DefeatMessage);
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, DefeatMessage);
 }
 
@@ -77,14 +74,12 @@ void UNBGameRulesLibrary::DrawGame(bool& bGameOver)
 {
 	FString DrawMessage = TEXT("Draw!!");
 	bGameOver = true;
-	UE_LOG(LogTemp, Warning, TEXT("%s"), *DrawMessage);
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, DrawMessage);
 }
 
 void UNBGameRulesLibrary::ResetGame(int& PlayerChances, bool& bGameOver)
 {
 	FString ResetMessage = TEXT("Game Reset!!");
-	UE_LOG(LogTemp, Warning, TEXT("%s"), *ResetMessage);
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, ResetMessage);
 	PlayerChances = 3;
 	bGameOver = false;

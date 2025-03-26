@@ -7,9 +7,11 @@
 #include "NBPlayerState.h"
 #include "NBGenerateRandomNumberLibrary.h"
 #include "NBGameRulesLibrary.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Image.h"
+#include "Components/TextBlock.h"
 #include "EngineUtils.h"
 
 ANBPlayerController::ANBPlayerController()
@@ -22,18 +24,21 @@ void ANBPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	FInputModeUIOnly InputModeUIOnly;
+	SetInputMode(InputModeUIOnly);
+
 	// 로컬 플레이어인 경우 채팅창 위젯을 보여준다.
 	if (IsLocalController())
 	{
 		ShowChatWindowWidget();
+		ServerSetupGoalNumber();
 	}
 
-	// 서버인 경우 GoalNumber를 설정하고, UserID를 요청한다.
-	if (HasAuthority())
+	// 서버인 경우 GoalNumber를 설정한다.
+	if (GetLocalRole() == ROLE_Authority)
 	{
-		ServerSetupGoalNumber();
 		ServerRequestUserID();
-		ClientUpdateCurrentTurnPlayer(this);
+		ServerRequestCurrentTurnPlayer();
 	}
 }
 
@@ -44,8 +49,6 @@ UUserWidget* ANBPlayerController::GetChatWindowWidget() const
 
 void ANBPlayerController::ShowChatWindowWidget()
 {
-	UE_LOG(LogTemp, Warning, TEXT("ShowChatWindowWidget called"));
-
 	if (ChatWindowWidgetInstance)
 	{
 		ChatWindowWidgetInstance->RemoveFromParent();
@@ -59,7 +62,6 @@ void ANBPlayerController::ShowChatWindowWidget()
 
 		if (ChatWindowWidgetInstance == nullptr)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Failed to create ChatWindowWidgetInstance"));
 			return;
 		}
 
@@ -68,10 +70,6 @@ void ANBPlayerController::ShowChatWindowWidget()
 		{
 			ChatWindow->OnUserInputCommitted.AddDynamic(this, &ANBPlayerController::ServerSendChatMessage);
 		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ChatWindowWidgetClass is not set"));
 	}
 }
 
@@ -87,21 +85,43 @@ void ANBPlayerController::ClientUpdateChatWindowWidget_Implementation()
 	}
 
 	UImage* IsMyTurn = Cast<UImage>(GetChatWindowWidget()->GetWidgetFromName(TEXT("IsMyTurn")));
-
 	// IsMyTurn 위젯이 유효한지 확인
 	if (IsMyTurn)
 	{
 		// 플레이어 상태를 확인하여 턴을 표시
 		if (NBPlayerState && NBPlayerState->GetIsMyTurn())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("It is my turn!"));
 			IsMyTurn->SetVisibility(ESlateVisibility::Visible);
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("It is not my turn!"));
 			IsMyTurn->SetVisibility(ESlateVisibility::Hidden);
 		}
+	}
+
+	UTextBlock* ScoreBoardText = Cast<UTextBlock>(GetChatWindowWidget()->GetWidgetFromName(TEXT("ScoreBoardText")));
+	if (ScoreBoardText)
+	{
+		FString ScoreBoardString;
+
+		// 현재 게임 상태 가져오기
+		ANBGameState* NBGameState = Cast<ANBGameState>(GetWorld()->GetGameState());
+		if (NBGameState)
+		{
+			for (APlayerState * PS : NBGameState->PlayerArray)
+			{
+				ANBPlayerState* NBPS = Cast<ANBPlayerState>(PS);
+				if (NBPS)
+				{
+					FString PlayerName = NBPS->UserID.IsEmpty() ? TEXT("Unknown") : NBPS->UserID;
+					FString PlayerEntry = FString::Printf(TEXT("%s : %d"), *PlayerName, NBPS->GetPlayerScore());
+					ScoreBoardString += PlayerEntry + TEXT("\n");
+				}
+			}
+		}
+
+		// FText로 변환 후 설정
+		ScoreBoardText->SetText(FText::FromString(ScoreBoardString));
 	}
 }
 
@@ -109,7 +129,6 @@ void ANBPlayerController::ServerSendChatMessage_Implementation(const FString& Me
 {
 	if (Message.IsEmpty())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Message is empty!"));
 		return;
 	}
 
@@ -126,13 +145,6 @@ void ANBPlayerController::ServerSendChatMessage_Implementation(const FString& Me
 	{
 		NBGameMode->CompareMessagetoGoalNumber(Message, this);
 	}
-
-	// 멀티캐스트로 메시지 전파
-	ANBGameState* NBGameState = GetWorld()->GetGameState<ANBGameState>();
-	if (NBGameState)
-	{
-		NBGameState->MulticastChatMessage(Message);
-	}
 }
 
 void ANBPlayerController::ServerWin_Implementation()
@@ -143,16 +155,14 @@ void ANBPlayerController::ServerWin_Implementation()
 
 	if (!NBGameState || !NBPlayerState) return;
 
-	UE_LOG(LogTemp, Warning, TEXT("ServerWin called! : %s"), *NBPlayerState->GetUserID());
-
 	UNBGameRulesLibrary::WinGame(NBPlayerState->GetUserID(), NBGameState->bGameOver);
-	NBPlayerState->SetScore(NBPlayerState->GetScore() + 1);
+	NBPlayerState->SetPlayerScore(NBPlayerState->GetPlayerScore() + 1);
 
 	// GameState에서 턴을 변경
 	NBGameState->SwitchTurn();
 
 	// 모든 클라이언트에게 승리 메시지 전달
-	MulticastShowGameResult(true);
+	NBGameState->MulticastShowGameResult(NBPlayerState->GetUserID());
 
 	// 게임 상태 초기화
 	ServerResetGame();
@@ -166,15 +176,10 @@ void ANBPlayerController::ServerDefeat_Implementation()
 
 	if (!NBGameState || !NBPlayerState) return;
 
-	UE_LOG(LogTemp, Warning, TEXT("ServerDefeat called! : %s"), *NBPlayerState->GetUserID());
-
 	UNBGameRulesLibrary::DefeatGame(NBPlayerState->GetUserID(), NBGameState->bGameOver);
 
 	// GameState에서 턴을 변경
 	NBGameState->SwitchTurn();
-
-	// 모든 클라이언트에게 패배 메시지 전달
-	MulticastShowGameResult(false);
 
 	// 게임 상태 초기화
 	ServerResetGame();
@@ -186,8 +191,6 @@ void ANBPlayerController::ServerContinue_Implementation()
 	ANBPlayerState* NBPlayerState = GetPlayerState<ANBPlayerState>();
 
 	if (!NBGameState || !NBPlayerState) return;
-
-	UE_LOG(LogTemp, Warning, TEXT("ServerContinue called! : %s"), *NBPlayerState->GetUserID());
 
 	UNBGameRulesLibrary::DecreaseChances(NBPlayerState->GetPlayerChance());
 
@@ -207,8 +210,6 @@ void ANBPlayerController::ServerContinue_Implementation()
 		}
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("bAllPlayerChanceZero is %s!"), bAllPlayerChanceZero ? TEXT("TRUE") : TEXT("FALSE"));
-
 	// 모든 플레이어의 PlayerChance가 0이면 게임을 리셋
 	if (bAllPlayerChanceZero)
 	{
@@ -218,39 +219,14 @@ void ANBPlayerController::ServerContinue_Implementation()
 	// GameState에서 턴을 변경
 	NBGameState->SwitchTurn();
 
-	// 클라이언트에서 UI 업데이트
-	ClientShowGameContinue();
-}
-
-void ANBPlayerController::MulticastShowGameResult_Implementation(bool bIsWinner)
-{
-	if (bIsWinner)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "WIN");
-		// ShowWinUI();
-	}
-	else
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, "LOSE");
-		// ShowLoseUI();
-	}
-}
-
-void ANBPlayerController::ClientShowGameContinue_Implementation()
-{
-	UE_LOG(LogTemp, Warning, TEXT("Continue!"));
-	// ShowContinueUI();
 }
 
 void ANBPlayerController::ServerResetGame_Implementation()
 {
-	UE_LOG(LogTemp, Warning, TEXT("ServerResetGame called!"));
-
 	ANBGameState* NBGameState = GetWorld()->GetGameState<ANBGameState>();
 	ANBGameMode* NBGameMode = GetWorld()->GetAuthGameMode<ANBGameMode>();
 	if (NBGameState)
 	{
-		NBGameState->ChatMessages.Empty();
 		NBGameState->bGameOver = false;
 	}
 	if (NBGameMode)
@@ -271,22 +247,28 @@ void ANBPlayerController::ServerResetGame_Implementation()
 
 void ANBPlayerController::ServerRequestUserID_Implementation()
 {
-	UE_LOG(LogTemp, Warning, TEXT("ServerRequestUserID called!"));
-	ANBGameMode* NBGameMode = GetWorld()->GetAuthGameMode<ANBGameMode>();
-	if (NBGameMode)
+	AGameModeBase* GameMode = UGameplayStatics::GetGameMode(this);
+	if (IsValid(GameMode) == true)
 	{
-		NBGameMode->ClientSetUserID(this);
-		NBGameMode->ServerSetTurnOrder();
+		ANBGameMode* NBGameMode = Cast<ANBGameMode>(GameMode);
+		if (IsValid(NBGameMode) == true)
+		{
+			NBGameMode->ClientSetUserID(this);
+			NBGameMode->ServerSetTurnOrder();
+		}
 	}
 }
 
 void ANBPlayerController::ServerSetupGoalNumber_Implementation()
 {
-	UE_LOG(LogTemp, Warning, TEXT("ServerSetupGoalNumber called!"));
-	ANBGameMode* NBGameMode = GetWorld()->GetAuthGameMode<ANBGameMode>();
-	if (NBGameMode)
+	AGameModeBase* GameMode = UGameplayStatics::GetGameMode(this);
+	if (IsValid(GameMode) == true)
 	{
-		NBGameMode->SetupGoalNumber();
+		ANBGameMode* NBGameMode = Cast<ANBGameMode>(GameMode);
+		if (IsValid(NBGameMode) == true)
+		{
+			NBGameMode->SetupGoalNumber();
+		}
 	}
 }
 
@@ -330,8 +312,11 @@ void ANBPlayerController::ClientUpdateCurrentTurnPlayer_Implementation(APlayerCo
 		{
 			// UserID를 가져와서 CurrentTurnPlayerID에 설정
 			CurrentTurnPlayerID = NBPlayerState->GetUserID();
+
 		}
 	}
+
+	ClientUpdateChatWindowWidget();
 }
 
 void ANBPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

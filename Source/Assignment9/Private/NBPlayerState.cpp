@@ -7,10 +7,12 @@
 
 ANBPlayerState::ANBPlayerState()
 {
+	bReplicates = true;
 	UserID = TEXT("");
 	bIsMyTurn = false;
 	PlayerScore = 0;
 	DefaultPlayerChance = 3;
+	PlayerChance = DefaultPlayerChance;
 }
 
 void ANBPlayerState::OnRep_IsMyTurn()
@@ -35,6 +37,7 @@ void ANBPlayerState::OnRep_PlayerChance()
 void ANBPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ANBPlayerState, UserID);
 	DOREPLIFETIME(ANBPlayerState, bIsMyTurn);
 	DOREPLIFETIME(ANBPlayerState, PlayerChance);
 	DOREPLIFETIME(ANBPlayerState, PlayerScore);

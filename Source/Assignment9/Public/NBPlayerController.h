@@ -58,14 +58,6 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerContinue();
 
-	// 클라이언트에서 승리/패배 UI표시하는 함수
-	UFUNCTION(NetMulticast, Reliable)
-	void MulticastShowGameResult(bool bIsWinner);
-
-	// 클라이언트에서 턴 변경 UI표시하는 함수
-	UFUNCTION(Client, Reliable)
-	void ClientShowGameContinue();
-
 	// 게임 종료후 재개를 위한 리셋 함수
 	UFUNCTION(Server, Reliable)
 	void ServerResetGame();

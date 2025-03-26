@@ -22,12 +22,6 @@ void ANBGameMode::SetupGoalNumber()
 	{
 		NBGameState->SetGoalNumber();
 		NBGameState->ForceNetUpdate(); // 변경 사항을 즉시 클라이언트로 전파
-
-		UE_LOG(LogTemp, Warning, TEXT("Server - GoalNumber set: %s"), *NBGameState->GoalNumber);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("SetupGoalNumber() was called but conditions were not met!"));
 	}
 }
 
@@ -36,12 +30,10 @@ void ANBGameMode::CompareMessagetoGoalNumber(const FString& Message, ANBPlayerCo
 	ANBGameState* NBGameState = GetGameState<ANBGameState>();
 	if (!NBGameState)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("NBGameState is null!"));
 		return;
 	}
 	if (NBGameState->GoalNumber.IsEmpty())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("GoalNumber is not synced yet!"));
 		return;
 	}
 
@@ -49,17 +41,14 @@ void ANBGameMode::CompareMessagetoGoalNumber(const FString& Message, ANBPlayerCo
 
 	if (Result == TEXT("3S0B"))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Win!"));
 		NBPlayerController->ServerWin();
 	}
 	else if (Result == TEXT("OUT"))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Defeat!"));
 		NBPlayerController->ServerDefeat();
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Continue!"));
 		NBPlayerController->ServerContinue();
 	}
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, Result);

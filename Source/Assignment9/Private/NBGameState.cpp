@@ -19,24 +19,7 @@ ANBGameState::ANBGameState()
 void ANBGameState::SetGoalNumber()
 {
 	GoalNumber = UNBGenerateRandomNumberLibrary::GenerateRandomNumber();
-}
-
-void ANBGameState::OnRep_ChatMessages()
-{
-	if (ChatMessages.IsEmpty())
-	{
-		return;
-	}
-
-	static FString LastProcessedMessage = TEXT("");
-
-	FString LastMessage = ChatMessages.Last();
-	if (LastMessage != LastProcessedMessage)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Chat Updated! Last Message: %s"), *LastMessage);
-		LastProcessedMessage = LastMessage;
-	}
-	MulticastChatMessage(LastMessage);
+	OnRep_GoalNumber();
 }
 
 void ANBGameState::OnRep_GoalNumber()
@@ -52,15 +35,11 @@ void ANBGameState::OnRep_GoalNumber()
 					if (GoalNumberText)
 					{
 						GoalNumberText->SetText(FText::FromString(GoalNumber));
-
-						UE_LOG(LogTemp, Warning, TEXT("OnRep_GoalNumber() Called!!"));
 					}
 				}
 			}
 		}
 	}
-	UE_LOG(LogTemp, Warning, TEXT("OnRep_GoalNumber() called on: %s"), HasAuthority() ? TEXT("Server") : TEXT("Client"));
-	UE_LOG(LogTemp, Warning, TEXT("Updated GoalNumber: %s"), *GoalNumber);
 }
 
 void ANBGameState::OnRep_bGameOver()
@@ -150,17 +129,21 @@ void ANBGameState::SwitchTurn()
 	}
 }
 
-
 void ANBGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ANBGameState, ChatMessages);
 	DOREPLIFETIME(ANBGameState, GoalNumber);
 	DOREPLIFETIME(ANBGameState, bGameOver);
 	DOREPLIFETIME(ANBGameState, CurrentTurnPlayer);
 }
 
-void ANBGameState::MulticastChatMessage_Implementation(const FString& NewMessage)
+void ANBGameState::MulticastShowGameResult_Implementation(const FString& UserID)
 {
-	UE_LOG(LogTemp, Warning, TEXT("Broadcasting message: %s"), *NewMessage);
+	if (HasAuthority())
+	{
+		return;
+	}
+
+	FString WinMessage = FString::Printf(TEXT("%s Won!!"), *UserID);
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, WinMessage);
 }

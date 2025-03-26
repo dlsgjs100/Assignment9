@@ -17,9 +17,23 @@ class ASSIGNMENT9_API ANBPlayerState : public APlayerState
 public:
 	ANBPlayerState();
 
-private:
+	UPROPERTY(ReplicatedUsing = OnRep_PlayerChance)
 	FString UserID;
-	FString Result;
+	UPROPERTY(ReplicatedUsing = OnRep_PlayerChance)
+	int32 PlayerScore;
+	UPROPERTY(ReplicatedUsing = OnRep_PlayerChance)
+	int32 PlayerChance;
+	UPROPERTY(ReplicatedUsing = OnRep_IsMyTurn)
+	bool bIsMyTurn;
+
+	UFUNCTION()
+	void OnRep_IsMyTurn();
+	UFUNCTION()
+	void OnRep_PlayerScore();
+	UFUNCTION()
+	void OnRep_PlayerChance();
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 public:
 	int32 DefaultPlayerChance;
 
@@ -41,20 +55,4 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PlayerState")
 	void SetPlayerChance(int32 InPlayerChance) { PlayerChance = InPlayerChance; }
 
-public:
-	UPROPERTY(ReplicatedUsing = OnRep_PlayerChance)
-	int32 PlayerScore;
-	UPROPERTY(ReplicatedUsing = OnRep_PlayerChance)
-	int32 PlayerChance;
-	UPROPERTY(ReplicatedUsing = OnRep_IsMyTurn)
-	bool bIsMyTurn;
-
-	UFUNCTION()
-	void OnRep_IsMyTurn();
-	UFUNCTION()
-	void OnRep_PlayerScore();
-	UFUNCTION()
-	void OnRep_PlayerChance();
-
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };
